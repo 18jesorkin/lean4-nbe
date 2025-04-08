@@ -8,31 +8,34 @@ Currently what is formalized is:
 
 - Normalization-By-Eval for Godel's system T (Slides 62-70)
 
+# Build and view Verso-textbook
 
-# Build instructions for Verso-textbook
+## Using the Makefile
+
+Run `make show`.
+If everything works this will build and open the textbook in your browser.
+
+## Step by step
+
 To build the Verso-textbook documenting the code:
 
-1. Run `lake exe cache get`: 
-    
-    This makes it so mathlib is quick to build
+1. Run `lake exe cache get`:
+
+    This makes it so mathlib is quick to build.
 
 2. Run `lake build`:
 
-    This builds the `.lake` directory.
+    This builds the code.
 
-3. Copy the code from `_in/textbook/DemoTextbook.lean` and paste it all into `.lake/packages/verso/examples/textbook/DemoTextbook.lean`:
+3. Run `lake exe textbook`
 
-    This is an ugly work-around I did, since I didn't know how to deal with git-submodules (verso is a submodule of my git-repo) and because the .lake directory is git-ignored.
-Because of both of these things, I did the easiest workaround for myself: I manually copied the code from  `.lake/packages/verso/examples/textbook/DemoTextbook.lean` and put it in the unused `_in/textbook/DemoTextbook.lean` so git could keep track of my verso-code.
-When you build verso in the `lake build` step, it is going to have the example code from the verso-repo. So in this step you are manually replacing the example-code with the verso-code I have written.
+    This write the textbook version into the `_out` directory.
 
-4. Run `lake exe demotextbook --output _out/examples/demotextbook`:
+    This will take the verso code from `Lean4Nbe/Textbook.lean`, build
+    the textbook from it and put the result in the `_out` directory.
 
-    This will take the verso code from `.lake/packages/verso/examples/textbook/DemoTextbook.lean`, build the textbook from it, and put everything in the `_out` directory.
-
-5. Run `python3 -m http.server 8880 --directory _out/examples/demotextbook/html-single &`:
+4. Run `python3 -m http.server 8880 --directory _out/html-single`:
 
     This creates a local server where you can read the textbook that was built.
 
 6. View the textbook in your browser with `http://localhost:8880/`
-

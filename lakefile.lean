@@ -17,3 +17,8 @@ require verso from git
 @[default_target]
 lean_lib «Lean4Nbe» where
   -- add any library configuration options here
+
+@[default_target]
+lean_exe textbook where
+  srcDir := "NbETextbook"
+  root := `NbETextbookMain
