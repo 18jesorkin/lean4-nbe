@@ -29,7 +29,7 @@ def neutral (e : Exp α) : Bool :=
     | app f' t₁ =>
       match f' with
       | var (α) n => true
-      | K       => false
+      | K       => true
       | S       => false
       | app f'' t₀ => true
 
@@ -68,11 +68,25 @@ lemma SN_R : (x →β y) → SN x → SN y :=
   rcases SN_x with ⟨SN_x⟩
   exact SN_x y x_R_y
 
-lemma SN_invR : (∀ y, (x →β y) → SN y) → SN x :=
+lemma SN_K : SN (@K α β) :=
   by
-  intro y_h
   constructor
-  exact y_h
+  intro K' K_R_K'
+  cases K_R_K'
+
+lemma SN_Kx {x : Exp α }
+  : SN (x) → SN ((@K α β) ⬝ x) :=
+  by
+  intro SN_x
+  induction SN_x
+  clear x; rename_i x SN_x x_IH
+  constructor
+  intro Kx' Kx_R_Kx'
+  cases Kx_R_Kx'
+  · rename_i K' K_R_K'
+    cases K_R_K'
+  · rename_i x' x_R_x'
+    exact x_IH x' x_R_x'
 
 lemma SN_S : (SN (@S α β γ)) :=
   by
@@ -181,6 +195,52 @@ lemma Red_invR (x : Exp α) (neutral_x : neutral x = true) : (∀ y, (x →β y)
         · exact x_R_x'
         · exact Red_R x x' x_R_x' Red_x
 
+lemma Red_x : Red (var α n) :=
+  by
+  apply Red_invR
+  · rfl
+  · intro e vₙ_R_e
+    cases vₙ_R_e
+
+lemma Red_Kxy {x : Exp α} {y : Exp β}
+  : Red x → Red y → Red (K ⬝ x ⬝ y) :=
+  by
+  intro Red_x Red_y
+  revert Red_y y
+  have SN_x := Red_SN x Red_x ; revert Red_x
+  induction SN_x
+  clear x; rename_i x SN_x x_IH ; clear SN_x
+  replace x_IH := fun x' x_R_x' Red_x' y₁ Red_y₁  => @x_IH x' x_R_x' Red_x' y₁ Red_y₁
+
+  intro Red_x y Red_y
+  revert x_IH ; revert Red_x x
+  have SN_y := Red_SN y Red_y ; revert Red_y
+  induction SN_y
+  clear y; rename_i y SN_y y_IH; clear SN_y
+
+  intro Red_y x Red_x x_IH
+  apply Red_invR (K ⬝ x ⬝ y) rfl
+  intro Kxy' Kxy_R_Kxy'
+  cases Kxy_R_Kxy'
+  · exact Red_x
+
+  · rename_i Kx' Kx_R_Kx'
+    cases Kx_R_Kx'
+    · rename_i K' K_R_K'
+      cases K_R_K'
+    · rename_i x' x_R_x'
+      apply x_IH
+      · exact x_R_x'
+      · exact Red_R x x' x_R_x' Red_x
+      · exact Red_y
+
+  · rename_i y' y_R_y'
+    apply y_IH
+    · exact y_R_y'
+    · exact Red_R y y' y_R_y' Red_y
+    · exact Red_x
+    · exact x_IH
+
 lemma Red_Sxyz {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)} {z : Exp α}
   : Red (x) → Red (y) → Red (z) → Red (S ⬝ x ⬝ y ⬝ z) :=
   by
@@ -188,32 +248,25 @@ lemma Red_Sxyz {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)} {z : Exp α
   revert Red_z z ; revert Red_y y
   have SN_x : SN x := Red_SN x Red_x ; revert Red_x
   induction SN_x
-  clear x ; rename_i x SN_x x_IH ; replace SN_x := SN.mk SN_x
+  clear x ; rename_i x SN_x x_IH ; clear SN_x
   replace x_IH := fun x' x_R_x' Red_x' y₁ Red_y₁ z₁ Red_z₁ => @x_IH x' x_R_x' Red_x' y₁ Red_y₁ z₁ Red_z₁
-  clear SN_x
 
   intro Red_x y Red_y
   revert x_IH ; revert Red_x x
   have SN_y : SN y := Red_SN y Red_y ; revert Red_y
   induction SN_y
-  clear y ; rename_i y SN_y y_IH ; replace SN_y := SN.mk SN_y
+  clear y ; rename_i y SN_y y_IH ; clear SN_y
   replace y_IH := fun y' y_R_y' Red_y' x₁ Red_x₁ x₁_IH z₁ Red_z₁ =>  @y_IH y' y_R_y' Red_y' x₁ Red_x₁ x₁_IH z₁ Red_z₁
-  clear SN_y
 
   intro Red_y x Red_x x_IH z Red_z
   revert y_IH ; revert Red_y y ; revert x_IH ; revert Red_x x
   have SN_z : SN z := Red_SN z Red_z ; revert Red_z
   induction SN_z
-  clear z ; rename_i z SN_z z_IH ; replace SN_z := SN.mk SN_z
+  clear z ; rename_i z SN_z z_IH ; clear SN_z
   replace z_IH := fun z' z_R_z' Red_z' x₁ Red_x₁ x₁_IH y₁ Red_y₁ y₁_IH => @z_IH z' z_R_z' Red_z' x₁ Red_x₁ x₁_IH y₁ Red_y₁ y₁_IH
-  clear SN_z
 
   intro Red_z x Red_x x_IH y Red_y y_IH
-  suffices ∀ e, (S ⬝ x ⬝ y ⬝ z) →β e  → Red e
-    by
-    apply Red_invR
-    · rfl
-    · assumption
+  apply Red_invR (S ⬝ x ⬝ y ⬝ z) rfl
   intro e Sxyz_R_e
   cases Sxyz_R_e
   · clear z_IH y_IH x_IH
@@ -237,7 +290,6 @@ lemma Red_Sxyz {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)} {z : Exp α
         · exact Red_R x x' x_R_x' Red_x
         · exact Red_y
         · exact Red_z
-
     · rename_i y' y_R_y'
       apply y_IH
       · exact y_R_y'
@@ -261,6 +313,19 @@ lemma all_Red (e : Exp α) : Red e :=
   induction e
   all_goals clear α
 
+  case var α n =>
+    exact Red_x
+
+  case K α β =>
+    apply And.intro
+    · exact SN_K
+    · intro x Red_x
+      apply And.intro
+      · have SN_x := Red_SN x Red_x
+        exact SN_Kx SN_x
+      · intro y Red_y
+        exact Red_Kxy Red_x Red_y
+
   case S α β γ =>
     apply And.intro
     · exact SN_S
@@ -276,5 +341,10 @@ lemma all_Red (e : Exp α) : Red e :=
         · intro z Red_z
           exact Red_Sxyz Red_x Red_y Red_z
 
-  all_goals
-    sorry
+  case app α β f x f_IH x_IH =>
+    rcases f_IH with ⟨left, Red_f⟩ ; clear left
+    exact Red_f x x_IH
+
+
+
+theorem all_SN (e : Exp α) : SN e := Red_SN e (all_Red e)
