@@ -2,27 +2,44 @@ import Mathlib.Tactic
 
 -- From: https://cs.ioc.ee/ewscs/2009/dybjer/mainPalmse-revised.pdf
 
+
+-- Monoid-expressions with atoms in a set α
+-- (slide 25)
 inductive Exp (α : Type)
+-- e₀ ⬝ e₁  : Exp α
 | app : Exp α → Exp α → Exp α
+-- id : Exp α
 | id  : Exp α
+-- (x : α) : Exp α
 | elem : α → Exp α
 infix : 100 " ⬝ " => Exp.app
 
-
+-- Congruence-relation that identifies when
+-- 2 Monoid-expressions are "convertible" (slide 26):
 inductive convr : (Exp α) → (Exp α) → Prop
+-- assoc                   :  ((e ⬝ e') ⬝ e'') ~ (e ⬝ (e' ⬝ e''))
 | assoc {e e' e'' : Exp α} : convr ((e ⬝ e') ⬝ e'') (e ⬝ (e' ⬝ e''))
+-- id_left                 :   (id ⬝ e) ~ e
 | id_left {e  : Exp α}     : convr ((Exp.id) ⬝ e) (e)
+-- id_right                :   (e ⬝ id) ~ e
 | id_right {e : Exp α}     : convr (e ⬝ Exp.id) (e)
+-- refl                    : e ~ e
 | refl     {e : Exp α}     : convr (e) (e)
+-- sym                     : e ~ e'         →   e' ~ e
 | sym      {e e' : Exp α}  : convr (e) (e') → convr (e') (e)
+-- trans                   : e ~ e'         → e' ~ e''         → e ~ e''
 | trans {e e' e'' : Exp α} : convr (e) (e') → convr (e') (e'') → convr (e) (e'')
+-- app                     : a ~ b         → c ~ d         →  (a ⬝ c) ~ (b ⬝ d)
 | app {a b c d : Exp α}    : convr (a) (b) → convr (c) (d) → convr (a ⬝ c) (b ⬝ d)
 infix : 100 " ~ " => convr
 
-
+-- Evaluate Monoid-expressions as functions (slide 32):
 def eval : (Exp α) → (Exp α → Exp α)
+  -- ⟦a ⬝ b⟧    =   λ e ↦ ⟦a⟧ (⟦b⟧ e)
   | Exp.app a b => (λ e => eval a (eval b e))
+  -- ⟦id⟧       =   λ e ↦ e
   | Exp.id      => id
+  -- ⟦x : α⟧    =   λ e ↦ x ⬝ e
   | Exp.elem x  => (λ e => (Exp.elem x) ⬝ e)
 
 
@@ -67,8 +84,10 @@ by
     intro b
     exact convr.refl
 
+-- Reify functions back into Monoid-expressions (slide 32):
 def reify (f : Exp α → Exp α) : (Exp α) := f Exp.id
 
+-- nbe e := reify ⟦e⟧ (slide 33):
 def nbe (e : Exp α) : Exp α := reify (eval e)
 
 -- Shows decidability of e ~ e'
