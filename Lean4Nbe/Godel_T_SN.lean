@@ -1,7 +1,3 @@
-import Mathlib.Tactic
-
--- From: https://cs.ioc.ee/ewscs/2009/dybjer/mainPalmse-revised.pdf
-
 inductive Ty : Type
 | nat   : Ty
 | arrow : Ty → Ty → Ty
@@ -16,36 +12,13 @@ inductive Exp : Ty → Type
 open Exp
 infixl : 100 " ⬝ " => app
 
-def neutral (e : Exp α) : Bool :=
-  match e with
-  | var (α) n => true
-  | K       => false
-  | S       => false
-  | app f t₂ =>
-    match f with
-    | var (α) n => true
-    | K       => false
-    | S       => false
-    | app f' t₁ =>
-      match f' with
-      | var (α) n => true
-      | K       => true
-      | S       => false
-      | app f'' t₀ => true
-
-
-lemma neutral_func {f : Exp (α ⇒' β)} : neutral f → neutral (f ⬝ x) :=
-  by
-  suffices neutral (f ⬝ x) = false → neutral f = false
-    by
-    aesop
-  intro not_neutral_fx
-  unfold neutral at not_neutral_fx
-  simp at not_neutral_fx
-  cases f
-  all_goals
-    aesop
-
+inductive fully_app : Exp α → Prop
+| var (α : Ty) (n : Nat)              : fully_app (var α n)
+| K {α β : Ty}{x : Exp α} {y : Exp β} : fully_app (K ⬝ x ⬝ y)
+| S {α β γ: Ty}{x : Exp (γ ⇒' β ⇒' α)} {y : Exp (γ ⇒' β)} {z : Exp γ}
+                                      : fully_app (S ⬝ x ⬝ y ⬝ z)
+| app_x {α : Ty} {f : Exp (β ⇒' α)} {x : Exp β}
+                                      : fully_app (f) → fully_app (f ⬝ x)
 
 inductive R : {α : Ty} → (Exp α) → (Exp α) → Prop
 | K     {α β : Ty}{x : Exp α} {y : Exp β}
@@ -62,19 +35,19 @@ infixr : 100 " →β " => R
 inductive SN : Exp α → Prop
 | mk : (∀y : Exp α, R x y → SN y) → SN x
 
-lemma SN_R : (x →β y) → SN x → SN y :=
+theorem SN_R : (x →β y) → SN x → SN y :=
   by
   intro x_R_y SN_x
   rcases SN_x with ⟨SN_x⟩
   exact SN_x y x_R_y
 
-lemma SN_K : SN (@K α β) :=
+theorem SN_K : SN (@K α β) :=
   by
   constructor
   intro K' K_R_K'
   cases K_R_K'
 
-lemma SN_Kx {x : Exp α }
+theorem SN_Kx {x : Exp α }
   : SN (x) → SN ((@K α β) ⬝ x) :=
   by
   intro SN_x
@@ -88,13 +61,13 @@ lemma SN_Kx {x : Exp α }
   · rename_i x' x_R_x'
     exact x_IH x' x_R_x'
 
-lemma SN_S : (SN (@S α β γ)) :=
+theorem SN_S : (SN (@S α β γ)) :=
   by
   constructor
   intro S' S_R_S'
   cases S_R_S'
 
-lemma SN_Sx {x : Exp (α ⇒' β ⇒' γ)}
+theorem SN_Sx {x : Exp (α ⇒' β ⇒' γ)}
   : SN (x) → SN (S ⬝ x) :=
   by
   intro SN_x
@@ -108,7 +81,7 @@ lemma SN_Sx {x : Exp (α ⇒' β ⇒' γ)}
   · rename_i x' x_R_x'
     exact x_IH x' x_R_x'
 
-lemma SN_Sxy {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)}
+theorem SN_Sxy {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)}
   : SN (x) → SN (y) → SN (S ⬝ x ⬝ y) :=
   by
   intro SN_x
@@ -130,9 +103,13 @@ lemma SN_Sxy {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)}
     · rename_i S' S_R_S'
       cases S_R_S'
     · rename_i x' x_R_x'
-      aesop
+      apply x_IH
+      · exact x_R_x'
+      · exact SN_y
   · rename_i y' y_R_y'
-    aesop
+    apply y_IH
+    · exact y_R_y'
+    · exact x_IH
 
 
 def Red (e : Exp α) : Prop :=
@@ -140,14 +117,16 @@ def Red (e : Exp α) : Prop :=
   | nat,       n => SN n
   | arrow α β, f => SN f ∧ ∀ x, Red x → Red (f ⬝ x)
 
-lemma Red_SN (x : Exp α) : (Red x) → SN x :=
+theorem Red_SN (x : Exp α) : (Red x) → SN x :=
   by
   cases α
-  all_goals
-    unfold Red
-    aesop
+  · unfold Red
+    exact id
+  · unfold Red
+    intro h ; rcases h with ⟨SN_x, right⟩ ; clear right
+    exact SN_x
 
-lemma Red_R (x y : Exp α) : (x →β y) → Red x → Red y :=
+theorem Red_R (x y : Exp α) : (x →β y) → Red x → Red y :=
   by
   revert y x
   induction α
@@ -163,15 +142,15 @@ lemma Red_R (x y : Exp α) : (x →β y) → Red x → Red y :=
       specialize β_IH (f ⬝ x) (f' ⬝ x) (R.app_f f_R_f') (Red_f x Red_x)
       assumption
 
-lemma Red_invR (x : Exp α) (neutral_x : neutral x = true) : (∀ y, (x →β y) → Red y) → Red x :=
+theorem Red_invR (x : Exp α) (fullyapp_x : fully_app x) : (∀ y, (x →β y) → Red y) → Red x :=
   by
   revert x
   induction α
     --by def of SN
   · unfold Red
-    exact fun x neutral_x a ↦ SN.mk a
+    exact fun x fullyapp_x a ↦ SN.mk a
   · rename_i α β α_IH β_IH
-    intro f f_neutral f_h
+    intro f fullyapp_f f_h
     apply And.intro
       --by def of SN
     · constructor
@@ -181,11 +160,15 @@ lemma Red_invR (x : Exp α) (neutral_x : neutral x = true) : (∀ y, (x →β y)
       induction SN_x
       clear x ; rename_i x SN_x x_IH
       apply β_IH
-      exact neutral_func f_neutral
+      exact fully_app.app_x fullyapp_f
       intro e fx_R_e
       cases fx_R_e
-      · cases f_neutral
-      · cases f_neutral
+      · cases fullyapp_f ; rename_i fullyapp_K
+        cases fullyapp_K
+      · cases fullyapp_f ; rename_i β' y' x' fullyapp_Sx'
+        cases fullyapp_Sx'
+        rename_i fullyapp_S
+        cases fullyapp_S
       · rename_i f' f_R_f'
         specialize f_h f' f_R_f'
         rcases f_h with ⟨left, Red_f'⟩ ; clear left
@@ -195,14 +178,14 @@ lemma Red_invR (x : Exp α) (neutral_x : neutral x = true) : (∀ y, (x →β y)
         · exact x_R_x'
         · exact Red_R x x' x_R_x' Red_x
 
-lemma Red_x : Red (var α n) :=
+theorem Red_x : Red (var α n) :=
   by
   apply Red_invR
-  · rfl
+  · exact fully_app.var α n
   · intro e vₙ_R_e
     cases vₙ_R_e
 
-lemma Red_Kxy {x : Exp α} {y : Exp β}
+theorem Red_Kxy {x : Exp α} {y : Exp β}
   : Red x → Red y → Red (K ⬝ x ⬝ y) :=
   by
   intro Red_x Red_y
@@ -219,7 +202,7 @@ lemma Red_Kxy {x : Exp α} {y : Exp β}
   clear y; rename_i y SN_y y_IH; clear SN_y
 
   intro Red_y x Red_x x_IH
-  apply Red_invR (K ⬝ x ⬝ y) rfl
+  apply Red_invR (K ⬝ x ⬝ y) (fully_app.K)
   intro Kxy' Kxy_R_Kxy'
   cases Kxy_R_Kxy'
   · exact Red_x
@@ -241,7 +224,7 @@ lemma Red_Kxy {x : Exp α} {y : Exp β}
     · exact Red_x
     · exact x_IH
 
-lemma Red_Sxyz {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)} {z : Exp α}
+theorem Red_Sxyz {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)} {z : Exp α}
   : Red (x) → Red (y) → Red (z) → Red (S ⬝ x ⬝ y ⬝ z) :=
   by
   intro Red_x Red_y Red_z
@@ -266,7 +249,7 @@ lemma Red_Sxyz {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)} {z : Exp α
   replace z_IH := fun z' z_R_z' Red_z' x₁ Red_x₁ x₁_IH y₁ Red_y₁ y₁_IH => @z_IH z' z_R_z' Red_z' x₁ Red_x₁ x₁_IH y₁ Red_y₁ y₁_IH
 
   intro Red_z x Red_x x_IH y Red_y y_IH
-  apply Red_invR (S ⬝ x ⬝ y ⬝ z) rfl
+  apply Red_invR (S ⬝ x ⬝ y ⬝ z) (fully_app.S)
   intro e Sxyz_R_e
   cases Sxyz_R_e
   · clear z_IH y_IH x_IH
@@ -308,7 +291,7 @@ lemma Red_Sxyz {x : Exp (α ⇒' β ⇒' γ)} {y : Exp (α ⇒' β)} {z : Exp α
     · apply y_IH
 
 
-lemma all_Red (e : Exp α) : Red e :=
+theorem all_Red (e : Exp α) : Red e :=
   by
   induction e
   all_goals clear α
